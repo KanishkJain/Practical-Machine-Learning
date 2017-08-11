@@ -1,0 +1,122 @@
+---
+title: "Practical Machine Learning Project"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction to the Dataset
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it.
+
+In this project, we will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participant They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. The five ways are exactly according to the specification (Class A), throwing the elbows to the front (Class B), lifting the dumbbell only halfway (Class C), lowering the dumbbell only halfway (Class D) and throwing the hips to the front (Class E). Only Class A corresponds to correct performance. The goal of this project is to predict the manner in which they did the exercise, i.e., Class A to E. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+
+```{r}
+# importing the data from links
+setwd("G:/Practical Machine Learning")
+
+init_training <- read.csv("pml-training.csv", na.strings = c("NA", "#DIV/0!", ""), header = TRUE)
+
+init_testing <- read.csv("pml-testing.csv", na.strings = c("NA", "#DIV/0!", ""), header = TRUE)
+
+dim(init_training)
+```
+The training dataset has 19622 observations and 160 variables, and the testing data set contains 20 observations and the same variables as the training set. We are trying to predict the outcome of the variable classe in the training set.
+
+## Exploratory Data Analysis
+
+After careful observation, we find that there are a lot of columns which have almost all the values as NA and are thus not useful for this analysis. We find these columns and remove them, before making final model.
+
+```{r}
+init_training <- init_training[colSums(!is.na(init_training))/dim(init_training)[1] > 0.2]
+
+init_testing <- init_testing[colSums(!is.na(init_testing))/dim(init_testing)[1] > 0.2]
+
+dim(init_testing)
+```
+
+The threshold set at 0.2 indicates that the variables having less than 20% data which is useful (i.e. not NA) are rejected. This leaves us with 60 variables, of which first 7 are not important in this analysis.
+
+```{r}
+init_training <- init_training[8:60]
+init_testing <- init_testing[8:60]
+```
+
+Final Dataset has 53 variables and 19622 observations in training set and 20 observations in test set.
+
+## Predictive Modelling
+
+First, we split the dataset into training (75%) and validation (25%) to get an estimate of out-of-sample error, as shown:
+
+```{r}
+library(caret)
+set.seed(123)
+intrain <- createDataPartition(init_training$classe, p = 0.75, list = F)
+training <- init_training[intrain,]
+validation <- init_training[-intrain,]
+```
+
+### Classification Tree
+
+We first explore predictions made via Classification Tree with 5-fold cross validation.
+
+```{r}
+control <- trainControl(method = "cv", number = 5)
+modelct <- train(classe~., method = "rpart", data = training, trControl = control)
+```
+
+We predict the output of this model on the validation set.
+
+```{r}
+predct<- predict(modelct, validation)
+confusionMatrix(validation$classe, predct)
+```
+
+The result obtained is not all that significant, since the accuracy (0.488) itself is lower than no-information criteria (0.5216). Thus, this model is not a good criterion for predicting outcomes.
+
+### Linear Discriminant Analysis
+
+We now explore predictions made via Linear Discriminant Analysis with 5-fold cross validation.
+
+```{r}
+control <- trainControl(method = "cv", number = 5)
+modellda <- train(classe~., method = "lda", data = training, trControl = control)
+```
+
+We predict the output of this model on the validation set.
+
+```{r}
+predlda <- predict(modellda, validation)
+confusionMatrix(validation$classe, predlda)
+```
+
+As it is visible, the accuracy obtained (0.7013) is quite better than no-information criteria (0.2894). So it is a better estimate than the previous one. Let's see if we can improve on this.
+
+### Random Forest
+
+We now explore predictions made Random Forest with 5-fold cross validation.
+
+```{r}
+control <- trainControl(method = "cv", number = 5)
+modelrf <- train(classe~., method = "rf", data = training, trControl = control)
+```
+
+We predict the output of this model on the validation set.
+
+```{r}
+predrf <- predict(modelrf, validation)
+confusionMatrix(validation$classe, predrf)
+```
+
+As it is visible, the accuracy obtained (0.9933) is even more better than LDA. It seems that RF models the non-linearities in the data much more accurately than a single tree or LDA. This leads to high accuracy, although this algorithm is sometimes difficult to interpret and computationally inefficient. So it should be used to estimate the outcome.
+
+## Prediction on Test Set
+
+Final Predictions:
+
+```{r}
+predict(modelrf,init_testing)
+```
